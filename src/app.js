@@ -80,7 +80,11 @@ app.delete("/tasks/:id", (req, res) => {
 //   return { total, hechas, pendientes: total - hechas, valido: acumulado >= 0 };
 // }
 //app.get("/reporte", (req, res) => res.json(calcularReporte()));
-app.get("/reporte", (req, res) => res.json());
+app.get("/reporte", (req, res) => {
+  const total = tareas.length;
+  const hechas = tareas.filter((t) => t.done).length;
+  res.json({ total, hechas, pendientes: total - hechas });
+});
 app.get("/metrics", async (req, res) => {
   res.set("Content-Type", client.register.contentType);
   res.end(await client.register.metrics());
