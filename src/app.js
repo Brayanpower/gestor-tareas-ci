@@ -4,6 +4,7 @@ const app = express();
 app.use(express.json());
 // ---------- Métricas (Prometheus) ----------
 client.collectDefaultMetrics();
+const MAX_TAREAS = 200;
 const duracionHttp = new client.Histogram({
   name: "http_request_duration_seconds",
   help: "Duración de las peticiones HTTP en segundos",
@@ -27,17 +28,32 @@ app.locals.reiniciar = () => {
 };
 // ---------- Rutas ----------
 app.get("/health", (req, res) => res.json({ status: "ok" }));
-app.get("/tasks", (req, res) => res.json(tareas));
+
+//implementacion de mejora en /tasks para limitar la cantidad de tareas que se devuelven y evitar que se demore tanto en listar las tareas
+app.get("/tasks", (req, res) => {
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const inicio = (page - 1) * limit;
+  res.json(tareas.slice(inicio, inicio + limit));
+});
+
 app.post("/tasks", (req, res) => {
   const { title } = req.body || {};
-
   if (typeof title !== "string" || !title.trim()) {
     return res.status(400).json({ error: "title es obligatorio" });
   }
   const tarea = { id: siguienteId++, title: title.trim(), done: false };
   tareas.push(tarea);
+  if (tareas.length > MAX_TAREAS) tareas.shift(); // borra la más vieja si pasa el límite
   res.status(201).json(tarea);
 });
+
+
+
+
+
+
+
 app.put("/tasks/:id/done", (req, res) => {
   const tarea = tareas.find((t) => t.id === Number(req.params.id));
   if (!tarea) return res.status(404).json({ error: "Tarea no encontrada" });
@@ -51,17 +67,20 @@ app.delete("/tasks/:id", (req, res) => {
   res.status(204).end();
 });
 // Versión 1 del reporte (código heredado).
-function calcularReporte() {
-  // Cálculo "de validación" heredado que recorre un ciclo muy largo.
-  let acumulado = 0;
-  for (let i = 0; i < 50000000; i++) {
-    acumulado += i % 7;
-  }
-  const total = tareas.length;
-  const hechas = tareas.filter((t) => t.done).length;
-  return { total, hechas, pendientes: total - hechas, valido: acumulado >= 0 };
-}
-app.get("/reporte", (req, res) => res.json(calcularReporte()));
+
+//implementacion de mejora en /reporte para que no se demore tanto en calcular el reporte
+// function calcularReporte() {
+//   // Cálculo "de validación" heredado que recorre un ciclo muy largo.
+//   let acumulado = 0;
+//   for (let i = 0; i < 50000000; i++) {
+//     acumulado += i % 7;
+//   }
+//   const total = tareas.length;
+//   const hechas = tareas.filter((t) => t.done).length;
+//   return { total, hechas, pendientes: total - hechas, valido: acumulado >= 0 };
+// }
+//app.get("/reporte", (req, res) => res.json(calcularReporte()));
+app.get("/reporte", (req, res) => res.json());
 app.get("/metrics", async (req, res) => {
   res.set("Content-Type", client.register.contentType);
   res.end(await client.register.metrics());
